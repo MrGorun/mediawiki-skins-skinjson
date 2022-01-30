@@ -42,18 +42,88 @@ class SkinJSON extends SkinMustache {
 		return parent::getUser();
 	}
 
+	public static function onSiteNoticeBefore( &$siteNotice, $skin ) {
+		$config = $skin->getConfig();
+		if ( $config->get( 'SkinJSONValidate' ) ) {
+			$siteNotice .= Html::element( 'div', [
+				'class' => 'skin-json-banner-validation-element skin-json-validation-element',
+			], '' );
+			return false;
+		}
+	}
 	/**
 	 * Forwards OutputPageBeforeHTML hook modifications to the template
 	 * This makes SkinJSON work with the MobileFrontend ContentProvider proxy.
 	 */
 	public static function onOutputPageBeforeHTML( $out, &$html ) {
-		if ( $out->getConfig()->get( 'SkinJSONDebug' ) ) {
+		$config = $out->getConfig();
+		if ( $config->get( 'SkinJSONDebug' ) ) {
 			$out->addModules( [ 'skins.skinjson.debug' ] );
 			$out->addModuleStyles( [ 'skins.skinjson.debug.styles' ] );
+		}
+		if ( $config->get( 'SkinJSONValidate' ) ) {
+			$out->addJsConfigVars( [
+				'wgSkinJSONValidate' => [
+					'wgLogos' => ResourceLoaderSkinModule::getAvailableLogos(
+						$config
+					),
+				],
+			] );
+			$out->addHTML(
+				implode( '', [
+					'<style type="text/css">',
+					'.skin-json-validation-element { display: none !important; }',
+					'</style>'
+				] )
+			);
+			$out->addModules( [ 'skins.skinjson.validate' ] );
 		}
 		if ( self::isSkinJSONMode( $out->getContext()->getRequest() ) ) {
 			$out->getSkin()->setTemplateVariable('html-body-content', $html);
 		}
+	}
+
+	private static function hookTestElement( string $hook, Config $config ) {
+		if ( $config->get( 'SkinJSONValidate' ) ) {
+			return Html::element( 'div', [
+				'class' => 'skin-json-hook-validation-element skin-json-validation-element',
+				'data-hook' => $hook,
+			], '' );
+		} else {
+			return '';
+		}
+	}
+
+	public static function onSkinAfterPortlet( $skin, $name, &$html ) {
+		$html .= self::hookTestElement( 'SkinAfterPortlet', $skin->getConfig() );
+	}
+
+	public static function onSkinAfterContent( &$html, Skin $skin ) {
+		$html .= self::hookTestElement( 'SkinAfterContent', $skin->getConfig() );
+	}
+
+	public static function onSkinAddFooterLinks( Skin $skin, string $key, array &$footerlinks  ) {
+		if ( $key === 'places' ) {
+			$footerlinks['test'] = self::hookTestElement( 'SkinAddFooterLinks', $skin->getConfig() );
+		}
+	}
+
+	public static function onSkinTemplateNavigationUniversal( $skin, &$links ) {
+		$links['user-menu']['skin-json-hook-validation-user-menu'] = [
+			'class' => [
+				'skin-json-validation-element',
+				'skin-json-validation-element-SkinTemplateNavigationUniversal'
+			],
+		];
+	}
+
+	public static function onSidebarBeforeOutput( Skin $skin, &$sidebar ) {
+		$sidebar['navigation']['skin-json-hook-validation-sidebar-item'] = [
+			'class' => [
+				'skin-json-validation-element',
+				'skin-json-validation-element-SidebarBeforeOutput'
+			],
+		];
 	}
 
 	private static function isSkinJSONMode( $request ) {
